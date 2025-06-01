@@ -31,26 +31,6 @@ const selectPrizeByProbability = (prizes) => {
   return prizes[0];
 };
 
-// Calculate spin angle based on prize position
-const calculateSpinAngle = (prizePosition, totalPrizes = 8) => {
-  // Each segment is 360/8 = 45 degrees
-  const segmentAngle = 360 / totalPrizes;
-
-  // Position 1 is at top (0 degrees), position 2 is at 45 degrees, etc.
-  const targetAngle = (prizePosition - 1) * segmentAngle;
-
-  // Add random offset within the segment (±22.5 degrees for 8 segments)
-  const randomOffset = (Math.random() - 0.5) * (segmentAngle * 0.8);
-
-  // Add multiple full rotations for animation effect (3-7 full rotations)
-  const fullRotations = (3 + Math.random() * 4) * 360;
-
-  // Calculate final angle (clockwise from top)
-  const finalAngle = fullRotations + targetAngle + randomOffset;
-
-  return Math.round(finalAngle);
-};
-
 // Spin the wheel
 router.post("/spin", spinLimiter, async (req, res) => {
   try {
@@ -118,14 +98,11 @@ router.post("/spin", spinLimiter, async (req, res) => {
     // Select winning prize based on probability
     const winningPrize = selectPrizeByProbability(prizes);
 
-    // Calculate spin angle
-    const spinAngle = calculateSpinAngle(winningPrize.position);
-
-    // Create spin result
+    // Create spin result (ไม่ต้องคำนวณ spinAngle แล้ว)
     const spinResult = new SpinResult({
       token: token._id,
       prizeWon: winningPrize._id,
-      spinAngle,
+      spinAngle: 0, // ไม่ใช้แล้ว แต่เก็บไว้เพื่อ backward compatibility
       clientInfo: {
         userAgent: req.get("User-Agent") || "",
         ip: req.ip || req.connection.remoteAddress || "",
@@ -152,7 +129,6 @@ router.post("/spin", spinLimiter, async (req, res) => {
             position: winningPrize.position,
             color: winningPrize.color,
           },
-          spinAngle,
           spunAt: spinResult.createdAt,
         },
       },

@@ -55,13 +55,24 @@ const SpinWheel = () => {
       const response = await spinAPI.spin(tokenCode.trim());
       const result = response.data.result;
 
-      // Calculate rotation angle
-      const spinAngle = result.spinAngle;
+      // คำนวณมุมการหมุนให้รางวัลมาตรงกลางบน
+      // Position 1 = 0°, Position 2 = 45°, Position 3 = 90°, etc.
+      const segmentAngle = 45; // 360 / 8 = 45 degrees per segment
+      const prizePosition = result.prize.position;
+
+      // คำนวณมุมเป้าหมาย (รางวัลจะมาอยู่ที่ตำแหน่ง 12 นาฬิกา)
+      // เนื่องจาก position 1 อยู่ที่ 12 นาฬิกาอยู่แล้ว เราต้องหมุนให้ prize ที่ต้องการมาอยู่ที่ตำแหน่งนั้น
+      const targetAngle = -(prizePosition - 1) * segmentAngle;
+
+      // เพิ่มการหมุนหลายรอบเพื่อให้ดูสมจริง (5-8 รอบ)
+      const extraRotations = (5 + Math.random() * 3) * 360;
+
+      // มุมการหมุนสุดท้าย
+      const finalAngle = extraRotations + targetAngle;
 
       // Apply spin animation
       if (wheelRef.current) {
-        wheelRef.current.style.setProperty("--spin-degrees", `${spinAngle}deg`);
-        wheelRef.current.classList.add("spinning");
+        wheelRef.current.style.transform = `rotate(${finalAngle}deg)`;
       }
 
       // Show result after animation
@@ -82,39 +93,58 @@ const SpinWheel = () => {
     setSpinResult(null);
     setShowResult(false);
     if (wheelRef.current) {
-      wheelRef.current.classList.remove("spinning");
-      wheelRef.current.style.setProperty("--spin-degrees", "0deg");
+      wheelRef.current.style.transform = "rotate(0deg)";
     }
   };
 
   const renderWheelSegment = (prize, index) => {
-    const segmentAngle = 360 / 8;
+    const segmentAngle = 45; // 360 / 8 = 45 degrees
     const rotation = index * segmentAngle;
+    const color = index % 2 === 0 ? "#dc2626" : "#f59e0b";
+
+    // Create proper slice using SVG path
+    const startAngle = (index * segmentAngle - 90) * (Math.PI / 180); // Start from top
+    const endAngle = ((index + 1) * segmentAngle - 90) * (Math.PI / 180);
+
+    const largeArcFlag = segmentAngle > 180 ? 1 : 0;
+    const radius = 150; // Half of wheel size (300px / 2)
+    const centerX = 150;
+    const centerY = 150;
+
+    const x1 = centerX + radius * Math.cos(startAngle);
+    const y1 = centerY + radius * Math.sin(startAngle);
+    const x2 = centerX + radius * Math.cos(endAngle);
+    const y2 = centerY + radius * Math.sin(endAngle);
+
+    const pathData = [
+      `M ${centerX} ${centerY}`,
+      `L ${x1} ${y1}`,
+      `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+      "Z",
+    ].join(" ");
+
+    // Text position
+    const textAngle = (startAngle + endAngle) / 2;
+    const textRadius = radius * 0.7;
+    const textX = centerX + textRadius * Math.cos(textAngle);
+    const textY = centerY + textRadius * Math.sin(textAngle);
 
     return (
-      <div
-        key={prize._id}
-        className="prize-segment absolute w-full h-full"
-        style={{
-          transform: `rotate(${rotation}deg)`,
-          background: index % 2 === 0 ? "#dc2626" : "#f59e0b",
-          clipPath: "polygon(50% 50%, 50% 0%, 92.7% 37.5%)",
-        }}
-      >
-        <div
-          className="absolute text-white text-sm font-semibold text-center"
-          style={{
-            top: "25%",
-            left: "65%",
-            transform: "translateX(-50%)",
-            fontSize: "12px",
-            lineHeight: "1.2",
-            maxWidth: "60px",
-          }}
+      <g key={prize._id || index}>
+        <path d={pathData} fill={color} stroke="#ffffff" strokeWidth="2" />
+        <text
+          x={textX}
+          y={textY}
+          fill="white"
+          fontSize="12"
+          fontWeight="bold"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          transform={`rotate(${rotation + 22.5}, ${textX}, ${textY})`}
         >
           {prize.name}
-        </div>
-      </div>
+        </text>
+      </g>
     );
   };
 
@@ -140,35 +170,83 @@ const SpinWheel = () => {
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="relative"
+            className="relative flex justify-center"
           >
-            <div className="wheel-container">
-              {/* Wheel Pointer */}
-              <div className="wheel-pointer"></div>
-
-              {/* Main Wheel */}
+            <div className="wheel-container relative">
+              {/* Main Wheel - SVG */}
               <div
                 ref={wheelRef}
-                className="relative w-full h-full rounded-full border-8 border-yellow-400 shadow-2xl"
-                style={{ transformOrigin: "center" }}
+                className="relative w-80 h-80 transition-transform duration-1000 ease-out"
+                style={{ transformOrigin: "center center" }}
               >
-                {prizes.map((prize, index) => renderWheelSegment(prize, index))}
-              </div>
+                <svg
+                  width="320"
+                  height="320"
+                  viewBox="0 0 300 300"
+                  className="w-full h-full drop-shadow-2xl"
+                >
+                  {/* Outer border */}
+                  <circle
+                    cx="150"
+                    cy="150"
+                    r="148"
+                    fill="none"
+                    stroke="#f59e0b"
+                    strokeWidth="4"
+                  />
 
-              {/* Center Hub */}
-              <div className="wheel-hub flex items-center justify-center">
-                <Sparkles className="w-8 h-8 text-red-800" />
-              </div>
+                  {/* Wheel segments */}
+                  {prizes.map((prize, index) =>
+                    renderWheelSegment(prize, index)
+                  )}
 
-              {/* Spinning Overlay */}
-              {isSpinning && (
-                <div className="absolute inset-0 bg-black bg-opacity-20 rounded-full flex items-center justify-center">
-                  <div className="text-white text-center">
-                    <Loader2 className="w-12 h-12 animate-spin mx-auto mb-2" />
-                    <p className="text-lg font-semibold">กำลังหมุน...</p>
+                  {/* Inner circle */}
+                  <circle
+                    cx="150"
+                    cy="150"
+                    r="25"
+                    fill="url(#goldGradient)"
+                    stroke="#dc2626"
+                    strokeWidth="3"
+                  />
+
+                  {/* Gradient definitions */}
+                  <defs>
+                    <linearGradient
+                      id="goldGradient"
+                      x1="0%"
+                      y1="0%"
+                      x2="100%"
+                      y2="100%"
+                    >
+                      <stop offset="0%" stopColor="#fbbf24" />
+                      <stop offset="100%" stopColor="#f59e0b" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+
+                {/* Spinning Overlay */}
+                {isSpinning && (
+                  <div className="absolute inset-0 bg-black bg-opacity-20 rounded-full flex items-center justify-center z-10">
+                    <div className="text-white text-center">
+                      <Loader2 className="w-12 h-12 animate-spin mx-auto mb-2" />
+                      <p className="text-lg font-semibold">กำลังหมุน...</p>
+                    </div>
                   </div>
+                )}
+              </div>
+
+              {/* Wheel Pointer - แหลมลง */}
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1 z-20">
+                <div className="w-0 h-0 border-l-[20px] border-r-[20px] border-t-[35px] border-l-transparent border-r-transparent border-t-red-600 filter drop-shadow-lg"></div>
+              </div>
+
+              {/* Center decoration */}
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 border-4 border-red-600 flex items-center justify-center shadow-lg">
+                  <Sparkles className="w-6 h-6 text-red-800" />
                 </div>
-              )}
+              </div>
             </div>
           </motion.div>
 
