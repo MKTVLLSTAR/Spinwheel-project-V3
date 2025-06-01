@@ -135,6 +135,34 @@
 /* Mobile responsiveness */
 @media (max-width: 640px) {
   .wheel-container svg {
-    @apply w-72 h-72;
+    @apply w-80 h-80;
   }
+}
+
+/* Custom scrollbar for space theme */
+.scrollbar-space {
+  scrollbar-width: thin;
+  scrollbar-color: #7c3aed #1e1b4b;
+}
+
+.scrollbar-space::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-space::-webkit-scrollbar-track {
+  background: #1e1b4b;
+}
+
+.scrollbar-space::-webkit-scrollbar-thumb {
+  background: #7c3aed;
+  border-radius: 3px;
+}
+
+/* Space glow effects */
+.space-glow {
+  box-shadow: 0 0 20px rgba(124, 58, 237, 0.3);
+}
+
+.space-glow:hover {
+  box-shadow: 0 0 30px rgba(124, 58, 237, 0.5);
 }

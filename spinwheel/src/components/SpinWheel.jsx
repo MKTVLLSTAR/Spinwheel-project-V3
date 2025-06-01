@@ -55,33 +55,47 @@ const SpinWheel = () => {
       const response = await spinAPI.spin(tokenCode.trim());
       const result = response.data.result;
 
-      // คำนวณมุมการหมุนให้รางวัลมาตรงกลางบน
-      // Position 1 = 0°, Position 2 = 45°, Position 3 = 90°, etc.
-      const segmentAngle = 45; // 360 / 8 = 45 degrees per segment
+      // คำนวณการหมุนให้แม่นยำที่สุด
       const prizePosition = result.prize.position;
 
-      // คำนวณมุมเป้าหมาย (รางวัลจะมาอยู่ที่ตำแหน่ง 12 นาฬิกา)
-      // เนื่องจาก position 1 อยู่ที่ 12 นาฬิกาอยู่แล้ว เราต้องหมุนให้ prize ที่ต้องการมาอยู่ที่ตำแหน่งนั้น
-      const targetAngle = -(prizePosition - 1) * segmentAngle;
+      // แต่ละ segment มีขนาด 45 degrees
+      // Position 1 ควรอยู่ที่ 0 degrees (12 นาฬิกา)
+      // Position 2 ควรอยู่ที่ 45 degrees
+      // Position 3 ควรอยู่ที่ 90 degrees
+      // และต่อไป...
 
-      // เพิ่มการหมุนหลายรอบเพื่อให้ดูสมจริง (5-8 รอบ)
-      const extraRotations = (5 + Math.random() * 3) * 360;
+      // คำนวณมุมปัจจุบันของรางวัลที่ได้
+      const prizeCurrentAngle = (prizePosition - 1) * 45;
+
+      // เราต้องการให้รางวัลมาอยู่ที่ 0 degrees (ใต้เข็ม)
+      // ดังนั้นต้องหมุน -prizeCurrentAngle
+      const targetAngle = -prizeCurrentAngle;
+
+      // เพิ่มการหมุนหลายรอบเพื่อให้ดูสมจริง (8-12 รอบ)
+      const extraRotations = (8 + Math.random() * 4) * 360;
 
       // มุมการหมุนสุดท้าย
       const finalAngle = extraRotations + targetAngle;
 
-      // Apply spin animation
+      console.log("Prize Position:", prizePosition);
+      console.log("Prize Current Angle:", prizeCurrentAngle);
+      console.log("Target Angle:", targetAngle);
+      console.log("Final Angle:", finalAngle);
+
+      // Apply smooth spin animation
       if (wheelRef.current) {
+        wheelRef.current.style.transition =
+          "transform 6s cubic-bezier(0.15, 0, 0.25, 1)";
         wheelRef.current.style.transform = `rotate(${finalAngle}deg)`;
       }
 
-      // Show result after animation
+      // Show result after animation (increased duration)
       setTimeout(() => {
         setSpinResult(result);
         setShowResult(true);
         setIsSpinning(false);
         toast.success(`🎉 คุณได้รับ: ${result.prize.name}`);
-      }, 4000);
+      }, 6000); // เพิ่มเป็น 6 วินาที
     } catch (error) {
       setIsSpinning(false);
       console.error("Spin error:", error);
@@ -93,23 +107,36 @@ const SpinWheel = () => {
     setSpinResult(null);
     setShowResult(false);
     if (wheelRef.current) {
+      // Reset transition และ transform
+      wheelRef.current.style.transition = "none";
       wheelRef.current.style.transform = "rotate(0deg)";
+
+      // Force reflow เพื่อให้ browser apply การเปลี่ยนแปลง
+      wheelRef.current.offsetHeight;
+
+      // เปิด transition กลับ
+      setTimeout(() => {
+        if (wheelRef.current) {
+          wheelRef.current.style.transition =
+            "transform 6s cubic-bezier(0.15, 0, 0.25, 1)";
+        }
+      }, 50);
     }
   };
 
   const renderWheelSegment = (prize, index) => {
     const segmentAngle = 45; // 360 / 8 = 45 degrees
-    const rotation = index * segmentAngle;
-    const color = index % 2 === 0 ? "#dc2626" : "#f59e0b";
+    const color = index % 2 === 0 ? "#1e3a8a" : "#7c3aed"; // Space blue and purple
 
-    // Create proper slice using SVG path
-    const startAngle = (index * segmentAngle - 90) * (Math.PI / 180); // Start from top
-    const endAngle = ((index + 1) * segmentAngle - 90) * (Math.PI / 180);
+    // Calculate precise angles for each segment
+    // Position 1 should be at top (12 o'clock), Position 2 at 1:30, etc.
+    const startAngle = (index * segmentAngle - 90 - 22.5) * (Math.PI / 180); // Start from top, offset by half segment
+    const endAngle = ((index + 1) * segmentAngle - 90 - 22.5) * (Math.PI / 180);
 
     const largeArcFlag = segmentAngle > 180 ? 1 : 0;
-    const radius = 150; // Half of wheel size (300px / 2)
-    const centerX = 150;
-    const centerY = 150;
+    const radius = 200; // Increased radius for bigger wheel
+    const centerX = 250;
+    const centerY = 250;
 
     const x1 = centerX + radius * Math.cos(startAngle);
     const y1 = centerY + radius * Math.sin(startAngle);
@@ -123,7 +150,7 @@ const SpinWheel = () => {
       "Z",
     ].join(" ");
 
-    // Text position
+    // Text position (middle of segment)
     const textAngle = (startAngle + endAngle) / 2;
     const textRadius = radius * 0.7;
     const textX = centerX + textRadius * Math.cos(textAngle);
@@ -131,37 +158,98 @@ const SpinWheel = () => {
 
     return (
       <g key={prize._id || index}>
-        <path d={pathData} fill={color} stroke="#ffffff" strokeWidth="2" />
+        {/* Segment with gradient */}
+        <defs>
+          <linearGradient
+            id={`segmentGradient${index}`}
+            x1="0%"
+            y1="0%"
+            x2="100%"
+            y2="100%"
+          >
+            <stop offset="0%" stopColor={color} />
+            <stop
+              offset="100%"
+              stopColor={index % 2 === 0 ? "#1e40af" : "#8b5cf6"}
+            />
+          </linearGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+            <feMerge>
+              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <path
+          d={pathData}
+          fill={`url(#segmentGradient${index})`}
+          stroke="#ffffff"
+          strokeWidth="3"
+          filter="url(#glow)"
+        />
         <text
           x={textX}
           y={textY}
           fill="white"
-          fontSize="12"
+          fontSize="14"
           fontWeight="bold"
           textAnchor="middle"
           dominantBaseline="middle"
-          transform={`rotate(${rotation + 22.5}, ${textX}, ${textY})`}
+          style={{
+            textShadow: "2px 2px 4px rgba(0,0,0,0.8)",
+            filter: "drop-shadow(1px 1px 2px rgba(0,0,0,0.8))",
+          }}
         >
           {prize.name}
+        </text>
+        {/* Position indicator for debugging */}
+        <text
+          x={textX}
+          y={textY + 20}
+          fill="#fbbf24"
+          fontSize="10"
+          fontWeight="bold"
+          textAnchor="middle"
+          dominantBaseline="middle"
+        >
+          {prize.position}
         </text>
       </g>
     );
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50 p-4">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
+      {/* Space background with stars */}
+      <div className="absolute inset-0">
+        {/* Stars */}
+        <div className="absolute top-10 left-10 w-2 h-2 bg-white rounded-full animate-pulse"></div>
+        <div className="absolute top-20 right-20 w-1 h-1 bg-yellow-300 rounded-full animate-pulse"></div>
+        <div className="absolute top-40 left-1/4 w-1 h-1 bg-blue-300 rounded-full animate-pulse"></div>
+        <div className="absolute top-60 right-1/3 w-2 h-2 bg-white rounded-full animate-pulse"></div>
+        <div className="absolute bottom-40 left-20 w-1 h-1 bg-purple-300 rounded-full animate-pulse"></div>
+        <div className="absolute bottom-60 right-10 w-1 h-1 bg-yellow-200 rounded-full animate-pulse"></div>
+        <div className="absolute top-1/3 left-10 w-1 h-1 bg-white rounded-full animate-pulse"></div>
+        <div className="absolute top-2/3 right-1/4 w-2 h-2 bg-blue-200 rounded-full animate-pulse"></div>
+
+        {/* Nebula effect */}
+        <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-purple-900/20 via-transparent to-blue-900/20"></div>
+      </div>
+
+      <div className="max-w-6xl mx-auto relative z-10 p-4">
+        {/* Increased max-width for larger wheel */}
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -50 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
-          <h1 className="text-4xl md:text-6xl font-bold gradient-text mb-4">
-            🎲 SpinWheel
+          <h1 className="text-4xl md:text-6xl font-bold bg-gradient-to-r from-yellow-400 via-purple-400 to-blue-400 bg-clip-text text-transparent mb-4">
+            🚀 SpinWheel Galaxy
           </h1>
-          <p className="text-lg md:text-xl text-gray-600">
-            ใส่ Token เพื่อหมุนวงล้อและลุ้นรับรางวัล
+          <p className="text-lg md:text-xl text-gray-300">
+            ใส่ Token เพื่อหมุนวงล้อในจักรวาลและลุ้นรับรางวัล
           </p>
         </motion.div>
 
@@ -173,25 +261,25 @@ const SpinWheel = () => {
             className="relative flex justify-center"
           >
             <div className="wheel-container relative">
-              {/* Main Wheel - SVG */}
+              {/* Main Wheel - SVG ขนาดใหญ่ */}
               <div
                 ref={wheelRef}
-                className="relative w-80 h-80 transition-transform duration-1000 ease-out"
+                className="relative w-[500px] h-[500px] transition-transform duration-1000 ease-out"
                 style={{ transformOrigin: "center center" }}
               >
                 <svg
-                  width="320"
-                  height="320"
-                  viewBox="0 0 300 300"
+                  width="500"
+                  height="500"
+                  viewBox="0 0 500 500"
                   className="w-full h-full drop-shadow-2xl"
                 >
-                  {/* Outer border */}
+                  {/* Space background circle */}
                   <circle
-                    cx="150"
-                    cy="150"
-                    r="148"
-                    fill="none"
-                    stroke="#f59e0b"
+                    cx="250"
+                    cy="250"
+                    r="248"
+                    fill="url(#spaceGradient)"
+                    stroke="#fbbf24"
                     strokeWidth="4"
                   />
 
@@ -200,51 +288,66 @@ const SpinWheel = () => {
                     renderWheelSegment(prize, index)
                   )}
 
-                  {/* Inner circle */}
+                  {/* Inner circle with space theme */}
                   <circle
-                    cx="150"
-                    cy="150"
-                    r="25"
-                    fill="url(#goldGradient)"
-                    stroke="#dc2626"
-                    strokeWidth="3"
+                    cx="250"
+                    cy="250"
+                    r="35"
+                    fill="url(#centerGradient)"
+                    stroke="#fbbf24"
+                    strokeWidth="4"
                   />
 
                   {/* Gradient definitions */}
                   <defs>
-                    <linearGradient
-                      id="goldGradient"
-                      x1="0%"
-                      y1="0%"
-                      x2="100%"
-                      y2="100%"
+                    <radialGradient
+                      id="spaceGradient"
+                      cx="50%"
+                      cy="50%"
+                      r="50%"
+                    >
+                      <stop offset="0%" stopColor="#1e1b4b" />
+                      <stop offset="100%" stopColor="#0f0f23" />
+                    </radialGradient>
+                    <radialGradient
+                      id="centerGradient"
+                      cx="50%"
+                      cy="50%"
+                      r="50%"
                     >
                       <stop offset="0%" stopColor="#fbbf24" />
                       <stop offset="100%" stopColor="#f59e0b" />
-                    </linearGradient>
+                    </radialGradient>
                   </defs>
                 </svg>
 
                 {/* Spinning Overlay */}
                 {isSpinning && (
-                  <div className="absolute inset-0 bg-black bg-opacity-20 rounded-full flex items-center justify-center z-10">
+                  <div className="absolute inset-0 bg-black bg-opacity-30 rounded-full flex items-center justify-center z-10">
                     <div className="text-white text-center">
-                      <Loader2 className="w-12 h-12 animate-spin mx-auto mb-2" />
-                      <p className="text-lg font-semibold">กำลังหมุน...</p>
+                      <Loader2 className="w-16 h-16 animate-spin mx-auto mb-4 text-yellow-400" />
+                      <p className="text-xl font-semibold">🚀 กำลังหมุน...</p>
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Wheel Pointer - แหลมลง */}
+              {/* Wheel Pointer - ธีมอวกาศ */}
               <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1 z-20">
-                <div className="w-0 h-0 border-l-[20px] border-r-[20px] border-t-[35px] border-l-transparent border-r-transparent border-t-red-600 filter drop-shadow-lg"></div>
+                <div className="relative">
+                  {/* Rocket pointer */}
+                  <div className="w-0 h-0 border-l-[25px] border-r-[25px] border-t-[45px] border-l-transparent border-r-transparent border-t-yellow-400 filter drop-shadow-lg"></div>
+                  {/* Rocket flame effect */}
+                  <div className="absolute top-0 left-1/2 transform -translate-x-1/2 translate-y-1">
+                    <div className="w-3 h-3 bg-orange-500 rounded-full animate-pulse opacity-80"></div>
+                  </div>
+                </div>
               </div>
 
-              {/* Center decoration */}
+              {/* Center decoration - Planet theme */}
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 border-4 border-red-600 flex items-center justify-center shadow-lg">
-                  <Sparkles className="w-6 h-6 text-red-800" />
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 border-4 border-yellow-300 flex items-center justify-center shadow-2xl animate-pulse">
+                  <Sparkles className="w-8 h-8 text-yellow-900" />
                 </div>
               </div>
             </div>
@@ -257,11 +360,11 @@ const SpinWheel = () => {
             className="space-y-6"
           >
             {!showResult ? (
-              <div className="glass-effect rounded-2xl p-8">
+              <div className="bg-gradient-to-br from-slate-800/80 to-purple-900/80 backdrop-blur-lg rounded-2xl p-8 border border-purple-500/30">
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-lg font-semibold text-gray-700 mb-2">
-                      รหัส Token
+                    <label className="block text-lg font-semibold text-purple-200 mb-2">
+                      🎫 รหัส Token
                     </label>
                     <input
                       type="text"
@@ -270,7 +373,7 @@ const SpinWheel = () => {
                         setTokenCode(e.target.value.toUpperCase())
                       }
                       placeholder="ใส่รหัส Token ของคุณ"
-                      className="w-full px-4 py-3 text-lg border-2 border-gray-300 rounded-lg focus:border-red-500 focus:outline-none transition-colors"
+                      className="w-full px-4 py-3 text-lg bg-slate-700/80 border-2 border-purple-400/50 rounded-lg focus:border-yellow-400 focus:outline-none transition-colors text-white placeholder-gray-400"
                       disabled={isSpinning}
                       maxLength={12}
                     />
@@ -279,22 +382,22 @@ const SpinWheel = () => {
                   <button
                     onClick={handleSpin}
                     disabled={isSpinning || loading || !tokenCode.trim()}
-                    className="w-full btn-primary text-xl py-4 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-bold text-xl py-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 shadow-lg"
                   >
                     {loading ? (
                       <>
-                        <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                        กำลังตรวจสอบ...
+                        <Loader2 className="w-6 h-6 animate-spin mr-2 inline" />
+                        🔍 กำลังตรวจสอบ...
                       </>
                     ) : isSpinning ? (
                       <>
-                        <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                        กำลังหมุน...
+                        <Loader2 className="w-6 h-6 animate-spin mr-2 inline" />
+                        🚀 กำลังหมุน...
                       </>
                     ) : (
                       <>
-                        <Gift className="w-6 h-6 mr-2" />
-                        หมุนวงล้อ
+                        <Gift className="w-6 h-6 mr-2 inline" />
+                        🌟 หมุนวงล้อจักรวาล
                       </>
                     )}
                   </button>
@@ -305,48 +408,56 @@ const SpinWheel = () => {
                 <motion.div
                   initial={{ opacity: 0, scale: 0.8, y: 50 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  className="glass-effect rounded-2xl p-8 text-center"
+                  className="bg-gradient-to-br from-yellow-600/90 to-orange-600/90 backdrop-blur-lg rounded-2xl p-8 text-center border border-yellow-400/50"
                 >
-                  <Trophy className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-                  <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                  <Trophy className="w-16 h-16 text-yellow-200 mx-auto mb-4" />
+                  <h2 className="text-3xl font-bold text-white mb-2">
                     🎉 ยินดีด้วย!
                   </h2>
-                  <p className="text-xl text-gray-600 mb-4">คุณได้รับรางวัล</p>
-                  <div className="bg-gradient-to-r from-red-500 to-yellow-500 text-white rounded-lg p-4 mb-6">
+                  <p className="text-xl text-yellow-100 mb-4">
+                    คุณได้รับรางวัลจากจักรวาล
+                  </p>
+                  <div className="bg-gradient-to-r from-purple-700 to-blue-700 text-white rounded-lg p-4 mb-6 border border-yellow-300">
                     <h3 className="text-2xl font-bold">
-                      {spinResult?.prize?.name}
+                      ⭐ {spinResult?.prize?.name}
                     </h3>
                   </div>
-                  <button onClick={resetSpin} className="btn-secondary">
-                    หมุนใหม่
+                  <button
+                    onClick={resetSpin}
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-bold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-105"
+                  >
+                    🔄 หมุนใหม่
                   </button>
                 </motion.div>
               </AnimatePresence>
             )}
 
             {/* Prize List */}
-            <div className="glass-effect rounded-2xl p-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+            <div className="bg-gradient-to-br from-slate-800/80 to-purple-900/80 backdrop-blur-lg rounded-2xl p-6 border border-purple-500/30">
+              <h3 className="text-xl font-bold text-purple-200 mb-4 flex items-center">
                 <Gift className="w-6 h-6 mr-2" />
-                รางวัลทั้งหมด
+                🏆 รางวัลในจักรวาล
               </h3>
               <div className="grid grid-cols-2 gap-2">
                 {prizes.map((prize, index) => (
                   <div
                     key={prize._id}
-                    className="flex items-center space-x-2 p-2 rounded-lg"
+                    className="flex items-center space-x-2 p-3 rounded-lg border border-purple-400/30"
                     style={{
-                      backgroundColor: index % 2 === 0 ? "#fee2e2" : "#fef3c7",
+                      background:
+                        index % 2 === 0
+                          ? "linear-gradient(135deg, rgba(30, 58, 138, 0.4), rgba(79, 70, 229, 0.4))"
+                          : "linear-gradient(135deg, rgba(124, 58, 237, 0.4), rgba(139, 92, 246, 0.4))",
                     }}
                   >
                     <div
                       className="w-4 h-4 rounded-full"
                       style={{
                         backgroundColor:
-                          index % 2 === 0 ? "#dc2626" : "#f59e0b",
+                          index % 2 === 0 ? "#1e3a8a" : "#7c3aed",
                       }}
                     ></div>
-                    <span className="text-sm font-medium text-gray-700">
+                    <span className="text-sm font-medium text-purple-100">
                       {prize.name}
                     </span>
                   </div>
